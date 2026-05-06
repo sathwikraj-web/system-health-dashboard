@@ -1,0 +1,127 @@
+ 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>System Health Dashboard</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <div class="container">
+    <h1>🖥️ System Health Dashboard</h1>
+    <p class="subtitle">Live monitoring · Updates every 3 seconds</p>
+
+    <div class="uptime-bar">
+      ⏱️ Uptime: <span id="uptime">{{ stats.uptime }}</span>
+      &nbsp;|&nbsp; 🕐 Last updated: <span id="timestamp">{{ stats.timestamp }}</span>
+    </div>
+
+    <div class="grid">
+      <!-- CPU -->
+      <div class="card">
+        <h2>CPU Usage</h2>
+        <div class="big-number" id="cpu-val">{{ stats.cpu_percent }}%</div>
+        <div class="bar-wrap"><div class="bar" id="cpu-bar" style="width:{{ stats.cpu_percent }}%; background: #e74c3c;"></div></div>
+        <p class="sub">{{ stats.cpu_cores }} cores</p>
+      </div>
+
+      <!-- Memory -->
+      <div class="card">
+        <h2>Memory Usage</h2>
+        <div class="big-number" id="mem-val">{{ stats.memory_percent }}%</div>
+        <div class="bar-wrap"><div class="bar" id="mem-bar" style="width:{{ stats.memory_percent }}%; background: #3498db;"></div></div>
+        <p class="sub" id="mem-sub">{{ stats.memory_used }} GB / {{ stats.memory_total }} GB</p>
+      </div>
+
+      <!-- Disk -->
+      <div class="card">
+        <h2>Disk Usage</h2>
+        <div class="big-number" id="disk-val">{{ stats.disk_percent }}%</div>
+        <div class="bar-wrap"><div class="bar" id="disk-bar" style="width:{{ stats.disk_percent }}%; background: #2ecc71;"></div></div>
+        <p class="sub" id="disk-sub">{{ stats.disk_used }} GB / {{ stats.disk_total }} GB</p>
+      </div>
+
+      <!-- Network -->
+      <div class="card">
+        <h2>Network I/O</h2>
+        <div class="net-row">📤 Sent: <span id="net-sent">{{ stats.net_sent }} MB</span></div>
+        <div class="net-row">📥 Received: <span id="net-recv">{{ stats.net_recv }} MB</span></div>
+      </div>
+    </div>
+
+    <!-- CPU History Chart -->
+    <div class="chart-card">
+      <h2>CPU History</h2>
+      <canvas id="cpuChart" height="80"></canvas>
+    </div>
+  </div>
+
+  <script>
+    const labels = [];
+    const cpuData = [];
+    const ctx = document.getElementById('cpuChart').getContext('2d');
+    const chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: 'CPU %',
+          data: cpuData,
+          borderColor: '#e74c3c',
+          backgroundColor: 'rgba(231,76,60,0.1)',
+          tension: 0.4,
+          fill: true
+        }]
+      },
+      options: {
+        scales: { y: { min: 0, max: 100 } },
+        animation: false,
+        plugins: { legend: { display: false } }
+      }
+    });
+
+    function setBar(id, val) {
+      const el = document.getElementById(id);
+      if (el) el.style.width = val + '%';
+    }
+
+    function colorFor(val) {
+      if (val > 85) return '#e74c3c';
+      if (val > 60) return '#f39c12';
+      return '#2ecc71';
+    }
+
+    async function refresh() {
+      const res = await fetch('/api/stats');
+      const d = await res.json();
+
+      document.getElementById('cpu-val').textContent = d.cpu_percent + '%';
+      document.getElementById('mem-val').textContent = d.memory_percent + '%';
+      document.getElementById('disk-val').textContent = d.disk_percent + '%';
+      document.getElementById('mem-sub').textContent = d.memory_used + ' GB / ' + d.memory_total + ' GB';
+      document.getElementById('disk-sub').textContent = d.disk_used + ' GB / ' + d.disk_total + ' GB';
+      document.getElementById('net-sent').textContent = d.net_sent + ' MB';
+      document.getElementById('net-recv').textContent = d.net_recv + ' MB';
+      document.getElementById('uptime').textContent = d.uptime;
+      document.getElementById('timestamp').textContent = d.timestamp;
+
+      document.getElementById('cpu-bar').style.background = colorFor(d.cpu_percent);
+      document.getElementById('mem-bar').style.background = colorFor(d.memory_percent);
+      document.getElementById('disk-bar').style.background = colorFor(d.disk_percent);
+
+      setBar('cpu-bar', d.cpu_percent);
+      setBar('mem-bar', d.memory_percent);
+      setBar('disk-bar', d.disk_percent);
+
+      labels.push(d.timestamp);
+      cpuData.push(d.cpu_percent);
+      if (labels.length > 20) { labels.shift(); cpuData.shift(); }
+      chart.update();
+    }
+
+    setInterval(refresh, 3000);
+  </script>
+</body>
+</html>
